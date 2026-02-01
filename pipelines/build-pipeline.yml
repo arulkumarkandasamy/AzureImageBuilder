@@ -1,0 +1,96 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - tf-image-factory/**
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  azureServiceConnection: 'YOUR_SERVICE_CONNECTION_NAME' # <--- UPDATE THIS
+  resourceGroup: 'rg-image-factory-001'
+  terraformDir: 'tf-image-factory'
+
+stages:
+# ------------------------------------------------------
+# Stage 1: Deploy Infrastructure (Terraform)
+# ------------------------------------------------------
+- stage: Infrastructure
+  displayName: 'Deploy/Update AIB Templates'
+  jobs:
+  - job: TerraformApply
+    steps:
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(terraformDir)'
+        backendServiceArm: '$(azureServiceConnection)'
+        backendAzureRmResourceGroupName: 'rg-tfstate'
+        backendAzureRmStorageAccountName: 'tstate123' # <--- UPDATE THIS
+        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmKey: 'aib.tfstate'
+
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Apply'
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(terraformDir)'
+        commandOptions: '-auto-approve'
+        environmentServiceNameAzureRM: '$(azureServiceConnection)'
+
+# ------------------------------------------------------
+# Stage 2: Trigger Builds (Azure CLI)
+# ------------------------------------------------------
+- stage: BuildImages
+  displayName: 'Run Image Builds'
+  dependsOn: Infrastructure
+  condition: succeeded()
+  jobs:
+  - job: TriggerBuilders
+    timeoutInMinutes: 120
+    steps:
+    # Trigger Windows Build
+    - task: AzureCLI@2
+      displayName: 'Build Windows 2022'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Triggering Windows Build..."
+          az resource invoke-action \
+            --resource-group $(resourceGroup) \
+            --resource-type Microsoft.VirtualMachineImages/imageTemplates \
+            --name aib-template-win2022 \
+            --action Run --no-wait
+
+    # Trigger Linux Builds (Loop)
+    - task: AzureCLI@2
+      displayName: 'Build Linux Images'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          TEMPLATES=("aib-template-ubuntu22" "aib-template-rhel9" "aib-template-almalinux9")
+          
+          for T in "${TEMPLATES[@]}"; do
+             echo "Triggering Build for $T..."
+             az resource invoke-action \
+               --resource-group $(resourceGroup) \
+               --resource-type Microsoft.VirtualMachineImages/imageTemplates \
+               --name $T \
+               --action Run --no-wait
+          done

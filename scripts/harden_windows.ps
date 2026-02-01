@@ -1,0 +1,16 @@
+Write-Output "--- Starting Windows Hardening ---"
+
+# 1. Disable SMBv1
+Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force
+
+# 2. Enable Firewall
+Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True
+
+# 3. Disable Guest Account
+Disable-LocalUser -Name "Guest"
+
+# 4. Set Screen Saver Lock (Security Best Practice)
+New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaveActive" -Value "1" -Force
+New-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaverIsSecure" -Value "1" -Force
+
+Write-Output "--- Hardening Complete ---"
