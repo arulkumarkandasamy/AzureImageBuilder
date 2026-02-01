@@ -1,0 +1,9 @@
+{
+  "ignore_configs": [
+    {
+      "filename": "pipelines/build-pipeline.yml",
+      "checksum": "2d634f081e9294bbaa62411b0691879e5341a2e425e5c3dc7c159b02d46f226b",
+      "ignore_detectors": ["filecontent"]
+    }
+  ]
+}
