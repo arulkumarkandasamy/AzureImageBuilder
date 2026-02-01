@@ -39,7 +39,7 @@ stages:
         backendAzureRmResourceGroupName: 'rg-tfstate'
         backendAzureRmStorageAccountName: 'tstate123' # <--- UPDATE THIS
         backendAzureRmContainerName: 'tfstate'
-        backendAzureRmKey: 'aib.tfstate'
+        backendAzureRmKey: ''
 
     - task: TerraformTaskV4@4
       displayName: 'Terraform Apply'
